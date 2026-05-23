@@ -17,7 +17,7 @@ type Product = {
   description: string | null;
   price: number;
   stock: StockEntry[];
-};
+};//
 
 export default function HomePage() {
   const router = useRouter();
