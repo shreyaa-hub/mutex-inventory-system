@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-
+//
   const { productId, warehouseId, quantity } = parsed.data;
 
   // --- idempotency bonus ---
