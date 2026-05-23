@@ -30,7 +30,6 @@ export async function releaseExpiredReservations(): Promise<number> {
   }
 
   // release them safely in a transaction
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await prisma.$transaction(async (tx: any) => {
     for (const r of expired) {
       /**
