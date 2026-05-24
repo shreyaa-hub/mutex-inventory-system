@@ -77,7 +77,7 @@ export default function HomePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": `reserve-${Date.now()}`,
+          "Idempotency-Key": `reserve-${productId}-${warehouseId}-${Date.now()}`,
         },
         body: JSON.stringify({
           productId,
@@ -90,17 +90,25 @@ export default function HomePage() {
 
       if (res.status === 409) {
         setReserveError(
-          "Stock is no longer available for this warehouse."
+          "This unit was reserved by another user just now."
         );
 
         await loadProducts();
+        setTimeout(() => {
+         setReserveError(null);
+        }, 5000);
+
         return;
       }
 
       if (res.status === 503) {
         setReserveError(
-          "Another reservation is processing right now. Please retry."
+          "Inventory is currently being updated. Please retry in a moment."
         );
+        
+        setTimeout(() => {
+         setReserveError(null);
+        }, 5000);
 
         return;
       }
@@ -110,12 +118,23 @@ export default function HomePage() {
           data.error ?? "Failed to create reservation"
         );
 
+        setTimeout(() => {
+          setReserveError(null);
+        }, 5000);
+
         return;
       }
 
       router.push(`/reservation/${data.id}`);
     } catch {
-      setReserveError("Network error. Please try again.");
+      setReserveError(
+        "Network error. Please try again."
+      );
+
+      setTimeout(() => {
+       setReserveError(null);
+      }, 5000);
+
     } finally {
       setReserving(null);
     }
@@ -355,8 +374,18 @@ export default function HomePage() {
 
       {/* Error */}
       {reserveError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {reserveError}
+        <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 shadow-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+
+          <div>
+            <p className="font-medium">
+              Reservation request failed
+            </p>
+
+            <p className="mt-1 text-rose-600">
+              {reserveError}
+            </p>
+          </div>
         </div>
       )}
 
@@ -481,9 +510,14 @@ export default function HomePage() {
                         }
                         className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                       >
-                        {isLoading
-                          ? "Reserving..."
-                          : "Reserve"}
+                        {isLoading ? (
+                          <span className="flex items-center gap-2">
+                            <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            Reserving...
+                          </span>
+                        ) : (
+                          "Reserve"
+                        )}
                       </button>
                     </div>
                   </div>
