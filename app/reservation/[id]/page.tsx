@@ -203,7 +203,7 @@ export default function ReservationPage() {
         Back to inventory
       </button>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md">
         <div className="border-b border-slate-100 bg-slate-50/60 px-6 py-5 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-slate-900">
@@ -307,7 +307,7 @@ export default function ReservationPage() {
               </div>
 
               <p
-                className={`text-5xl font-mono font-bold tracking-tight ${
+                className={`text-5xl font-mono font-bold tracking-tight transition-all duration-300 ${
                   timeLeft < 60
                     ? "text-rose-600"
                     : "text-amber-600"
@@ -324,7 +324,7 @@ export default function ReservationPage() {
           )}
 
           {isExpired && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-5 text-sm">
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-5 text-sm flex items-start gap-2">
               This reservation has expired. The held stock has been
               returned to inventory.
             </div>
@@ -355,8 +355,11 @@ export default function ReservationPage() {
           )}
 
           {actionError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-5 text-sm">
-              {actionError}
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-5 text-sm flex items-start gap-2">
+              <>
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{actionError}</span>
+              </>
             </div>
           )}
 
@@ -368,9 +371,14 @@ export default function ReservationPage() {
                 className="flex-1 bg-teal-600 text-white font-semibold py-2.5 rounded-lg text-sm
                 hover:bg-teal-700 disabled:bg-slate-200 disabled:text-slate-400 transition-all"
               >
-                {actionLoading
-                  ? "Processing..."
-                  : "Confirm purchase"}
+                {actionLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing...
+                  </span>
+                ) : (
+                  "Confirm purchase"
+                )}
               </button>
 
               <button
@@ -413,7 +421,7 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold transition-all duration-200 ${
         styles[status] ?? "bg-slate-100 text-slate-600"
       }`}
     >
