@@ -6,6 +6,10 @@ This project simulates a real-world inventory reservation workflow with concurre
 
 ---
 
+## 🚀 Live Demo
+
+https://allo-inventory-system-ten-tau.vercel.app/
+
 ## Tech Stack
 
 - Next.js (App Router)
