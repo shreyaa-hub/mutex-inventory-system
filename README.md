@@ -46,10 +46,10 @@ The main goal of the project was preventing overselling when multiple users atte
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/shreyaa-hub/mutex-inventory-system.git
+git clone https://github.com/shreyaa-hub/allo-inventory-system.git
 
 # 2. Move into the project
-cd mutex-inventory-system
+cd allo-inventory
 
 # 3. Install dependencies
 npm install
@@ -380,6 +380,73 @@ REDIS_URL=
 - Confirm reservation
 - Release reservation
 - Automatic expiry handling
+
+## Initial Inventory Dashboard
+
+![Old Dashboard](./screenshots/old-dashboard.png)
+
+---
+
+## Initial Reservation Flow
+
+![Old Reservation](./screenshots/old-reservation.png)
+
+---
+
+# Enhanced Inventory Dashboard
+
+Features added:
+
+- Real-time inventory metrics
+- Warehouse filtering
+- Low stock indicators
+- Improved inventory cards
+- Better reservation visibility
+- Responsive dashboard UI
+
+![New Dashboard](./screenshots/new-dashboard.png)
+
+---
+
+# Reservation Lifecycle
+
+## Pending Reservation
+
+- Live countdown timer
+- Temporary stock hold
+- Automatic expiry handling
+
+![Pending Reservation](./screenshots/reservation-pending.png)
+
+---
+
+## Confirmed Reservation
+
+- Successful stock confirmation
+- Reservation state update
+- Inventory synchronization
+
+![Confirmed Reservation](./screenshots/reservation-confirmed.png)
+
+---
+
+## Expired Reservation
+
+- Automatic reservation expiry
+- Stock returned to inventory
+- Real-time status updates
+
+![Expired Reservation](./screenshots/reservation-expired.png)
+
+---
+
+## Released Reservation
+
+- Manual reservation cancellation
+- Inventory restoration
+- Reservation cleanup
+
+![Released Reservation](./screenshots/reservation-released.png)
 
 ---
 
