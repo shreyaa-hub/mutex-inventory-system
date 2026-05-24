@@ -46,7 +46,7 @@ The main goal of the project was preventing overselling when multiple users atte
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/shreyaa-hub/mutex-inventory-system.git
 
 # 2. Move into the project
 cd mutex-inventory-system
