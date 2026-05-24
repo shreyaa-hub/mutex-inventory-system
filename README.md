@@ -1,4 +1,4 @@
-# Mutex Inventory Reservation System
+# Allo Inventory Reservation System
 
 Backend-focused and Concurrency-safe inventory reservation platform built for the Allo take-home exercise.
 
@@ -275,28 +275,28 @@ This ensures stale reservations are released even during low traffic periods.
 
 # API Reference
 
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/products` | Get product inventory |
-| GET | `/api/warehouses` | Get warehouse list |
-| POST | `/api/reservations` | Create reservation |
-| GET | `/api/reservations/:id` | Get reservation details |
-| POST | `/api/reservations/:id/confirm` | Confirm reservation |
-| POST | `/api/reservations/:id/release` | Release reservation |
+| Method | Route                           | Description             |
+| ------ | ------------------------------- | ----------------------- |
+| GET    | `/api/products`                 | Get product inventory   |
+| GET    | `/api/warehouses`               | Get warehouse list      |
+| POST   | `/api/reservations`             | Create reservation      |
+| GET    | `/api/reservations/:id`         | Get reservation details |
+| POST   | `/api/reservations/:id/confirm` | Confirm reservation     |
+| POST   | `/api/reservations/:id/release` | Release reservation     |
 
 ---
 
 # Status Codes
 
-| Status | Meaning |
-|---|---|
-| 200 | Success |
-| 201 | Reservation created |
-| 400 | Invalid request |
-| 404 | Resource not found |
-| 409 | Insufficient stock |
-| 410 | Reservation expired |
-| 503 | Lock contention |
+| Status | Meaning             |
+| ------ | ------------------- |
+| 200    | Success             |
+| 201    | Reservation created |
+| 400    | Invalid request     |
+| 404    | Resource not found  |
+| 409    | Insufficient stock  |
+| 410    | Reservation expired |
+| 503    | Lock contention     |
 
 ---
 
@@ -317,6 +317,7 @@ Adding automatic client-side retry with exponential backoff would improve UX.
 The current UI polls for updates.
 
 Using:
+
 - WebSockets
 - Server-Sent Events
 
@@ -399,5 +400,5 @@ This project helped me understand:
 
 # Author
 
-Shreya Singh, 25MCB1005 
+Shreya Singh, 25MCB1005
 VIT, Chennai
