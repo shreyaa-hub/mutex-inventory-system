@@ -6,7 +6,7 @@ import { releaseExpiredReservations } from "@/lib/expiry";
 
 // reservation window — 10 minutes
 const RESERVATION_WINDOW_MS = 10 * 60 * 1000;
-// const RESERVATION_WINDOW_MS = 30 * 1000; for testing
+// const RESERVATION_WINDOW_MS = 30 * 1000; // for testing
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
