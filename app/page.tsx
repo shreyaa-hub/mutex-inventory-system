@@ -1,15 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Search,
-  Boxes,
-  Clock,
-  Building2,
+  Package,
+  Warehouse,
   AlertTriangle,
-  Loader2,
 } from "lucide-react";
 
 type StockEntry = {
@@ -30,32 +27,46 @@ type Product = {
 
 export default function HomePage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [reserving, setReserving] = useState<string | null>(null);
   const [reserveError, setReserveError] = useState<string | null>(null);
 
-  const {
-    data: products = [],
-    isLoading,
-    isError,
-    error,
-  } = useQuery<Product[]>({
-    queryKey: ["products"],
-    queryFn: async () => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedWarehouse, setSelectedWarehouse] = useState("ALL");
+  const [selectedAvailability, setSelectedAvailability] =
+    useState("ALL");
+
+  async function loadProducts() {
+    try {
       const res = await fetch("/api/products");
 
       if (!res.ok) {
         throw new Error("Failed to load inventory");
       }
 
-      return res.json();
-    },
-    refetchInterval: 4000,
-  });
+      const data = await res.json();
+      setProducts(data);
+    } catch (e: unknown) {
+      setError(
+        e instanceof Error ? e.message : "Unknown error"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  async function handleReserve(productId: string, warehouseId: string) {
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  async function handleReserve(
+    productId: string,
+    warehouseId: string
+  ) {
     const key = `${productId}:${warehouseId}`;
 
     setReserving(key);
@@ -66,6 +77,7 @@ export default function HomePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Idempotency-Key": `reserve-${Date.now()}`,
         },
         body: JSON.stringify({
           productId,
@@ -77,13 +89,27 @@ export default function HomePage() {
       const data = await res.json();
 
       if (res.status === 409) {
-        setReserveError("Stock was just reserved by another user.");
-        queryClient.invalidateQueries({ queryKey: ["products"] });
+        setReserveError(
+          "Stock is no longer available for this warehouse."
+        );
+
+        await loadProducts();
+        return;
+      }
+
+      if (res.status === 503) {
+        setReserveError(
+          "Another reservation is processing right now. Please retry."
+        );
+
         return;
       }
 
       if (!res.ok) {
-        setReserveError(data.error ?? "Could not create reservation");
+        setReserveError(
+          data.error ?? "Failed to create reservation"
+        );
+
         return;
       }
 
@@ -95,65 +121,87 @@ export default function HomePage() {
     }
   }
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const term = searchTerm.toLowerCase();
+  const warehouseOptions = useMemo(() => {
+    const map = new Map();
 
-      return (
-        product.name.toLowerCase().includes(term) ||
-        product.description?.toLowerCase().includes(term)
-      );
+    products.forEach((product) => {
+      product.stock.forEach((stock) => {
+        map.set(stock.warehouseId, {
+          id: stock.warehouseId,
+          name: stock.warehouseName,
+        });
+      });
     });
-  }, [products, searchTerm]);
 
-  const totalStock = products.reduce(
+    return Array.from(map.values());
+  }, [products]);
+
+  const totalAvailableUnits = products.reduce(
     (acc, product) =>
       acc +
       product.stock.reduce(
-        (stockAcc, stock) => stockAcc + stock.available,
+        (sum, stock) => sum + stock.available,
         0
       ),
     0
   );
 
-  const totalWarehouses = new Set(
-    products.flatMap((p) => p.stock.map((s) => s.warehouseId))
-  ).size;
-
-  const lowStockProducts = products.filter((p) =>
-    p.stock.some((s) => s.available > 0 && s.available <= 3)
+  const lowStockCount = products.filter((product) =>
+    product.stock.some(
+      (stock) =>
+        stock.available > 0 && stock.available <= 3
+    )
   ).length;
 
-  if (isLoading) {
+  const filteredProducts = products
+    .map((product) => {
+      const filteredStock = product.stock.filter((stock) => {
+        const warehouseMatch =
+          selectedWarehouse === "ALL" ||
+          stock.warehouseId === selectedWarehouse;
+
+        const availabilityMatch =
+          selectedAvailability === "ALL" ||
+          (selectedAvailability === "IN_STOCK" &&
+            stock.available > 0) ||
+          (selectedAvailability === "LOW_STOCK" &&
+            stock.available > 0 &&
+            stock.available <= 3) ||
+          (selectedAvailability === "OUT_OF_STOCK" &&
+            stock.available === 0);
+
+        return warehouseMatch && availabilityMatch;
+      });
+
+      return {
+        ...product,
+        stock: filteredStock,
+      };
+    })
+    .filter((product) => {
+      const searchMatch =
+        product.name
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        product.description
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase());
+
+      return searchMatch && product.stock.length > 0;
+    });
+
+  if (loading) {
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm animate-pulse"
-          >
-            <div className="h-4 w-1/3 rounded bg-slate-200"></div>
-            <div className="mt-4 h-3 w-2/3 rounded bg-slate-100"></div>
-            <div className="mt-6 space-y-2">
-              <div className="h-10 rounded bg-slate-100"></div>
-              <div className="h-10 rounded bg-slate-100"></div>
-            </div>
-          </div>
-        ))}
+      <div className="mt-10 text-center text-sm text-slate-500">
+        Loading inventory...
       </div>
     );
   }
 
-  if (isError) {
+  if (error) {
     return (
-      <div className="rounded-xl border border-rose-200 bg-rose-50 p-6">
-        <h2 className="text-lg font-semibold text-rose-700">
-          Failed to load inventory
-        </h2>
-
-        <p className="mt-2 text-sm text-rose-600">
-          {error instanceof Error ? error.message : "Unknown error"}
-        </p>
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+        {error}
       </div>
     );
   }
@@ -161,22 +209,23 @@ export default function HomePage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="border-b border-slate-200 pb-5">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+      <div className="border-b border-slate-200 pb-6">
+        <h1 className="text-3xl font-bold text-slate-900">
           Inventory Dashboard
         </h1>
 
-        <p className="mt-1 text-sm text-slate-500">
-          Monitor live inventory availability and reserve stock safely.
+        <p className="mt-2 text-sm text-slate-500">
+          Monitor live inventory availability and reserve
+          stock safely.
         </p>
       </div>
 
       {/* Metrics */}
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="rounded-lg bg-teal-50 p-2 text-teal-600">
-              <Boxes className="h-5 w-5" />
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
+              <Package className="h-5 w-5" />
             </div>
 
             <div>
@@ -184,17 +233,17 @@ export default function HomePage() {
                 Available Units
               </p>
 
-              <h3 className="mt-1 text-2xl font-bold text-slate-950">
-                {totalStock}
-              </h3>
+              <h2 className="mt-1 text-3xl font-bold text-slate-900">
+                {totalAvailableUnits}
+              </h2>
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
             <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
-              <Building2 className="h-5 w-5" />
+              <Warehouse className="h-5 w-5" />
             </div>
 
             <div>
@@ -202,17 +251,17 @@ export default function HomePage() {
                 Warehouses
               </p>
 
-              <h3 className="mt-1 text-2xl font-bold text-slate-950">
-                {totalWarehouses}
-              </h3>
+              <h2 className="mt-1 text-3xl font-bold text-slate-900">
+                {warehouseOptions.length}
+              </h2>
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
             <div className="rounded-lg bg-amber-50 p-2 text-amber-600">
-              <Clock className="h-5 w-5" />
+              <AlertTriangle className="h-5 w-5" />
             </div>
 
             <div>
@@ -220,151 +269,226 @@ export default function HomePage() {
                 Low Stock Alerts
               </p>
 
-              <h3 className="mt-1 text-2xl font-bold text-slate-950">
-                {lowStockProducts}
-              </h3>
+              <h2 className="mt-1 text-3xl font-bold text-slate-900">
+                {lowStockCount}
+              </h2>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+      {/* Filters */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          {/* Search */}
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
 
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-sm outline-none transition focus:border-teal-500 focus:bg-white"
-          />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) =>
+                setSearchTerm(e.target.value)
+              }
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-teal-500 focus:bg-white"
+            />
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={selectedWarehouse}
+              onChange={(e) =>
+                setSelectedWarehouse(e.target.value)
+              }
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-teal-500"
+            >
+              <option value="ALL">All Warehouses</option>
+
+              {warehouseOptions.map((warehouse: any) => (
+                <option
+                  key={warehouse.id}
+                  value={warehouse.id}
+                >
+                  {warehouse.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={selectedAvailability}
+              onChange={(e) =>
+                setSelectedAvailability(e.target.value)
+              }
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-teal-500"
+            >
+              <option value="ALL">All Stock</option>
+              <option value="IN_STOCK">
+                In Stock
+              </option>
+              <option value="LOW_STOCK">
+                Low Stock
+              </option>
+              <option value="OUT_OF_STOCK">
+                Out of Stock
+              </option>
+            </select>
+
+            {(searchTerm !== "" ||
+              selectedWarehouse !== "ALL" ||
+              selectedAvailability !== "ALL") && (
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  setSelectedWarehouse("ALL");
+                  setSelectedAvailability("ALL");
+                }}
+                className="text-sm font-medium text-rose-500 hover:text-rose-600"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Error */}
       {reserveError && (
-        <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{reserveError}</span>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {reserveError}
+        </div>
+      )}
+
+      {/* Empty */}
+      {filteredProducts.length === 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+          No products matched your filters.
         </div>
       )}
 
       {/* Products */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {filteredProducts.map((product) => (
           <div
             key={product.id}
-            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md"
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
           >
-            <div className="p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-base font-semibold text-slate-900">
-                    {product.name}
-                  </h2>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  {product.name}
+                </h2>
 
-                  {product.description && (
-                    <p className="mt-1 text-sm text-slate-500">
-                      {product.description}
-                    </p>
-                  )}
-                </div>
+                {product.description && (
+                  <p className="mt-2 text-sm text-slate-500">
+                    {product.description}
+                  </p>
+                )}
+              </div>
 
-                <span className="text-sm font-bold text-teal-700">
+              <div className="text-right">
+                <p className="text-lg font-bold text-teal-600">
                   ₹{product.price.toLocaleString("en-IN")}
-                </span>
+                </p>
               </div>
+            </div>
 
-              <div className="mt-5 space-y-3">
-                {product.stock.map((s) => {
-                  const key = `${product.id}:${s.warehouseId}`;
-                  const isLoadingReserve = reserving === key;
+            <div className="mt-6 space-y-4">
+              {product.stock.map((stock) => {
+                const key = `${product.id}:${stock.warehouseId}`;
 
-                  const percentage =
-                    s.total === 0
-                      ? 0
-                      : Math.round((s.available / s.total) * 100);
+                const isLoading =
+                  reserving === key;
 
-                  return (
-                    <div
-                      key={s.warehouseId}
-                      className="rounded-lg border border-slate-100 bg-slate-50/70 p-3"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-slate-800">
-                            {s.warehouseName}
-                          </p>
+                const stockPercentage =
+                  (stock.available / stock.total) * 100;
 
-                          <p className="text-xs text-slate-400">
-                            {s.location}
-                          </p>
-                        </div>
+                const isLow =
+                  stock.available > 0 &&
+                  stock.available <= 3;
 
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            s.available === 0
-                              ? "bg-rose-100 text-rose-700"
-                              : s.available <= 3
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-emerald-100 text-emerald-700"
-                          }`}
-                        >
-                          {s.available === 0
-                            ? "Out"
-                            : s.available <= 3
-                            ? "Low"
-                            : "Available"}
-                        </span>
+                const isOut =
+                  stock.available === 0;
+
+                return (
+                  <div
+                    key={stock.warehouseId}
+                    className="rounded-xl border border-slate-100 bg-slate-50 p-4"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-medium text-slate-800">
+                          {stock.warehouseName}
+                        </h3>
+
+                        <p className="text-xs text-slate-400">
+                          {stock.location}
+                        </p>
                       </div>
 
-                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                        <div
-                          style={{ width: `${percentage}%` }}
-                          className={`h-full rounded-full ${
-                            s.available === 0
-                              ? "bg-rose-500"
-                              : s.available <= 3
-                              ? "bg-amber-500"
-                              : "bg-teal-500"
-                          }`}
-                        />
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-between">
-                        <div className="text-xs text-slate-500">
-                          <span className="font-semibold text-slate-700">
-                            {s.available}
-                          </span>{" "}
-                          available
-                          <span className="text-slate-400">
-                            {" "}
-                            / {s.total} total
-                          </span>
-                        </div>
-
-                        <button
-                          onClick={() =>
-                            handleReserve(product.id, s.warehouseId)
-                          }
-                          disabled={s.available === 0 || isLoadingReserve}
-                          className="inline-flex items-center gap-1 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-                        >
-                          {isLoadingReserve ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              Reserving
-                            </>
-                          ) : (
-                            "Reserve"
-                          )}
-                        </button>
-                      </div>
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-medium ${
+                          isOut
+                            ? "bg-red-100 text-red-600"
+                            : isLow
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-emerald-100 text-emerald-700"
+                        }`}
+                      >
+                        {isOut
+                          ? "Out"
+                          : isLow
+                          ? "Low"
+                          : "Available"}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Progress Bar */}
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        style={{
+                          width: `${stockPercentage}%`,
+                        }}
+                        className={`h-full rounded-full ${
+                          isOut
+                            ? "bg-red-400"
+                            : isLow
+                            ? "bg-amber-500"
+                            : "bg-teal-500"
+                        }`}
+                      />
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="text-xs text-slate-500">
+                        <span className="font-semibold text-slate-700">
+                          {stock.available}
+                        </span>{" "}
+                        available / {stock.total} total
+                      </div>
+
+                      <button
+                        onClick={() =>
+                          handleReserve(
+                            product.id,
+                            stock.warehouseId
+                          )
+                        }
+                        disabled={
+                          stock.available === 0 ||
+                          isLoading
+                        }
+                        className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                      >
+                        {isLoading
+                          ? "Reserving..."
+                          : "Reserve"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ))}
